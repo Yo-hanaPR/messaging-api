@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Message</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Send Message</h1>
+        <form id="messageForm">
+            <div class="form-group">
+
+                <select id="userDropdown" class="form-control" required>
+                    <option value="">Select a user</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="content">Message</label>
+                <textarea class="form-control" id="content" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Send Message</button>
+        </form>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        username='';
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/';
+        } 
+
+        try {
+            const response = await fetch('/messages/profile', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const user = await response.json();
+                username= user.username;
+            } else {
+                console.log('Unable to retrieve user information.');
+            }
+        } catch (error) {
+            console.log('An error occurred: ' + error.message);
+        }
+
+        // mark message as read
+        async function markAsRead(messageId) {
+            try {
+                const response = await fetch(`/messages/read/${messageId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const messageElement = document.getElementById(`message-${messageId}`);
+                    if (messageElement) {
+                        messageElement.classList.add('read');
+                    }
+                } else {
+                    const error = await response.json();
+                    alert('Failed to mark message as read: ' + error.message);
+                }
+            } catch (error) {
+                alert('An error occurred: ' + error.message);
+            }
+        }
+
+        document.getElementById('messageForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const receiver = document.getElementById('userDropdown').value;
+            const content = document.getElementById('content').value;
+            const token = localStorage.getItem('token');
+            const sender = username; 
+            try {
+                const response = await fetch('/messages/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ receiver, content, sender })
+                });
+
+                if (response.ok) {
+                    window.location.href = '/dashboard';
+                } else {
+                    const error = await response.json();
+                    alert('Failed to send message: ' + error.message);
+                }
+            } catch (error) {
+                alert('An error occurred: ' + error.message);
+            }
+        });
+
+        async function loadUsers() {
+        const response = await fetch(`/users/exclude?username=${username}`);
+        const data = await response.json();
+        const users = data.users;
+
+        const dropdown = document.getElementById('userDropdown');
+        dropdown.innerHTML = '<option value="">Select a user</option>';
+
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.username;
+            option.textContent = user.username;
+            dropdown.appendChild(option);
+        });
+        }
+        loadUsers();
+    });
+    </script>
+</body>
+</html>

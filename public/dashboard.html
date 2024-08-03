@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    .centered {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 80vh;
+    }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async() => {
+      username='';
+      const token = localStorage.getItem('token');
+      if (!token) {
+        window.location.href = '/';
+      }
+
+      // Solicitar información del usuario
+      try {
+            const response = await fetch('/messages/profile', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const user = await response.json();
+                username= user.username;
+            } else if (response.status === 401) {
+              // Token expirado o no autorizado
+              alert('Session expired. Please log in again.');
+              window.location.href = '/';
+            }{
+                console.log('Unable to retrieve user information.');
+            }
+        } catch (error) {
+            console.log('An error occurred: ' + error.message);
+        }
+      
+      // Fetch all the messages
+      try {
+        const response = await fetch(`/messages/all?username=${username}&filter=all`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const { messages } = await response.json();
+          const messagesContainer = document.getElementById('messagesContainer');
+          messagesContainer.innerHTML = messages.map(message => {
+            const messageClass = message.isRead ? 'alert alert-success' : 'alert alert-warning text-dark';
+            return `
+              <div class="message-container ${messageClass} p-4 m-2" data-message-id="${message._id}">
+                <strong>${message.sender}</strong>: ${message.content}
+                ${!message.isRead ? `<button class="btn btn-secondary btn-sm ml-2" onclick="markAsRead('${message._id}')">Mark as read</button>` : ''}
+              </div>
+            `;
+          }).join('');
+        } else {
+          alert('Failed to load messages');
+        }
+      } catch (error) {
+        alert('An error occurred: ' + error.message);
+      }
+    });
+
+      //filter messages
+      async function filterMessages(filter) {
+          await fetchAndDisplayMessages(filter);
+        }
+
+      async function fetchAndDisplayMessages(filter) {
+        const token = localStorage.getItem('token');
+        try {
+          const response = await fetch(`/messages/all?username=${username}&filter=${filter}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            const { messages } = await response.json();
+            const messagesContainer = document.getElementById('messagesContainer');
+            messagesContainer.innerHTML = messages.map(message => `
+              <div class=" p-4 m-2 alert ${message.isRead ? 'alert-success' : 'alert-warning'}">
+                <strong>${message.sender}</strong>: ${message.content}
+                ${!message.isRead ? `<button class="btn btn-secondary btn-sm ml-2" onclick="markAsRead('${message._id}')">Mark as read</button>` : ''}
+              </div>
+            `).join('');
+          } else {
+            alert('Failed to load messages.');
+          }
+        } catch (error) {
+          alert('An error occurred: ' + error.message);
+        }
+      }
+
+    async function markAsRead(messageId) {
+      const token = localStorage.getItem('token');
+
+        try {
+          const response = await fetch(`/messages/read/${messageId}`, {
+              method: 'PUT',
+              headers: {
+                  'Authorization': `Bearer ${token}`
+              }
+          });
+
+          if (response.ok) {
+              updateMessageStatus(messageId);
+          } else {
+              alert('Failed to mark message as read');
+          }
+        } catch (error) {
+            alert('An error occurred: ' + error.message);
+        }
+    }
+  function updateMessageStatus(messageId) {
+  const messageDiv = document.querySelector(`[data-message-id='${messageId}']`);
+  
+  if (messageDiv) {
+    messageDiv.classList.remove('alert-warning');
+    messageDiv.classList.add('alert-success');
+    
+    const button = messageDiv.querySelector('button');
+    if (button) {
+      button.remove(); 
+    }
+  }
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  window.location.href = '/';
+}
+
+  </script>
+</head>
+<body>
+<div class="container">
+    
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">Messaging api</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ml-auto">
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            Filter Messages
+          </a>
+          <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+            <a class="dropdown-item" href="#" onclick="filterMessages('all')">All</a>
+            <a class="dropdown-item" href="#" onclick="filterMessages('read')">Read</a>
+            <a class="dropdown-item" href="#" onclick="filterMessages('unread')">Unread</a>
+          </div>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/messages/send-message" onclick="sendMessage()">Send a message</a>
+        </li>
+        <li class="nav-item">
+            <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card m-5">
+      <div class="card-header">
+        <h1>Inbox</h1>
+      </div>
+      <div class="card-body">
+        <div id="messagesContainer" class="mt-5">
+          <!-- Messages will be inserted here -->
+        </div>
+      </div>
+    </div>
+    
+  </div>
+
+</div>
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
